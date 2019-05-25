@@ -10,6 +10,7 @@
       height="1"
       color="tomato"
       material="transparent: true; opacity: 0.5"
+      :position="cursorHighlightPosition"
     ></a-plane>
 
     <a-plane
@@ -21,6 +22,8 @@
       color="#ccc"
       shadow
       raycaster-listen
+      @click="addObject"
+      @raycaster-updated="updateCursorHighlight"
     ></a-plane>
 
     <a-box
@@ -62,62 +65,55 @@ export default class World3d extends Vue {
     y: 25
   };
 
+  private cursorHighlightPosition = "";
+
   mounted() {
-    const camera: AFrame["AEntity"] | null = this.$el.querySelector("#camera");
-    const cursorHighlight: AFrame["AEntity"] | null = this.$el.querySelector(
-      "#cursor-highlight"
+    document.addEventListener("keydown", this.handleRotate);
+    document.addEventListener("keyup", this.handleRotate);
+  }
+
+  addObject(e: DetailEvent<"click">) {
+    const raycasterEl = e.target.components["raycaster-listen"].raycasterEl;
+
+    if (!raycasterEl) return;
+
+    const cursorPosition = AFrameUtils.coordinates.parse(
+      this.cursorHighlightPosition
     );
-    const floor: AFrame["AEntity"] | null = this.$el.querySelector("#floor");
 
-    document.addEventListener("keydown", (e) => {
-      const orbitControls = camera.components["orbit-controls"];
+    this.$store.commit("addObject", {
+      color: "tomato",
+      position: {
+        x: cursorPosition.x,
+        y: 0.5,
+        z: cursorPosition.z
+      }
+    });
+  }
 
-      console.log(orbitControls, e.keyCode, e.key);
+  handleRotate({ keyCode, type }: KeyboardEvent) {
+    const camera: AFrame["AEntity"] | null = this.$el.querySelector("#camera");
+    const orbitControls = camera.components["orbit-controls"];
 
-      if(e.keyCode === 81) { // Q
+    if(type === "keydown") {
+
+      if (keyCode === 81) { // Q
         orbitControls.controls.autoRotate = true;
         orbitControls.controls.autoRotateSpeed = 2;
-      } else if(e.keyCode === 69) { // E
+      } else if (keyCode === 69) { // E
         orbitControls.controls.autoRotate = true;
         orbitControls.controls.autoRotateSpeed = -2;
       }
-    });
 
-    document.addEventListener("keyup", (e) => {
-      const orbitControls = camera.components["orbit-controls"];
-
+    } else if(type === "keyup") {
       orbitControls.controls.autoRotate = false;
-    });
-
-    if (floor) {
-      floor.addEventListener("raycaster-updated", function(e) {
-        const { x, z } = e.detail.point;
-
-        cursorHighlight.setAttribute(
-          "position",
-          `${Math.floor(x + 0.5)} 0.01 ${Math.floor(z + 0.5)}`
-        );
-      });
-
-      floor.addEventListener("click", e => {
-        const raycasterEl = e.target.components["raycaster-listen"].raycasterEl;
-
-        if (!raycasterEl) return;
-
-        const cursorPosition = AFrameUtils.coordinates.parse(
-          cursorHighlight.getAttribute("position")
-        );
-
-        this.$store.commit("addObject", {
-          color: "tomato",
-          position: {
-            x: cursorPosition.x,
-            y: 0.5,
-            z: cursorPosition.z
-          }
-        });
-      });
     }
+  }
+
+  updateCursorHighlight(e: DetailEvent<"raycaster-updated">) {
+    const { x, z } = e.detail.point;
+
+    this.cursorHighlightPosition = `${Math.floor(x + 0.5)} 0.01 ${Math.floor(z + 0.5)}`;
   }
 }
 </script>
