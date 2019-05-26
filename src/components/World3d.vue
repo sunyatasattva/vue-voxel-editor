@@ -83,15 +83,20 @@ export default class World3d extends Vue {
   };
 
   private cursorHighlightPosition = "";
-  private isMouseDown: false | AFrame["AEntity"] = false;
+  private isMouseDown: number | AFrame["AEntity"] = 0;
   private objects!: any[];
   private selectedObjectId!: string;
   private selectedTool!: string;
 
   mounted() {
-    document.addEventListener("keydown", this.handleRotate);
+    document.addEventListener("keydown", this.handleKeypress);
     document.addEventListener("keyup", this.handleRotate);
-    document.addEventListener("mouseup", () => this.isMouseDown = false);
+    document.addEventListener("mouseup", () => {
+      if(typeof this.isMouseDown === "number")
+        window.clearTimeout(this.isMouseDown);
+
+      this.isMouseDown = 0;
+    });
 
     this.$store.commit("createWorld", this.$refs.world);
   }
@@ -147,7 +152,7 @@ export default class World3d extends Vue {
   }
   
   handleRaycasterUpdate(e: DetailEvent<"raycaster-updated">) {
-    if(this.isMouseDown) {
+    if(typeof this.isMouseDown !== "number") {
       this.updateObjectPosition(this.isMouseDown, e.detail.point);
     } else {
       this.updateCursorHighlight(e);
@@ -176,23 +181,48 @@ export default class World3d extends Vue {
   selectObject(e: DetailEvent<"click">) {
     e.target.addState("selected");
     this.$store.commit("selectObject", e.target.id);
-    this.isMouseDown = e.target;
+
+    this.isMouseDown = window.setTimeout(() => this.isMouseDown = e.target, 250);
   }
 
   updateCursorHighlight(e: DetailEvent<"raycaster-updated">) {
     let v: THREE.Vector3;
-    const { x, y, z } = e.detail.point;
+    let { x, y, z } = e.detail.point;
     
     if( e.target.className.includes("voxel") ) {
       const intersectedFace = e.detail.face.normal;
+      this.cursorIntersectedFace = intersectedFace;
 
-      v = new AFRAME.THREE.Vector3(x, y, z)
-        .round()
-        .add( new AFRAME.THREE.Vector3(0, 0.01, 0) );
+      if(intersectedFace.y !== 0) {
+        this.cursorHighlightRotation = "-90 0 0";
+        x = Math.floor(x + 0.5);
+        y = y + 0.01 * intersectedFace.y;
+        z = Math.floor(z + 0.5);
     }
-    else
-      v = new AFRAME.THREE.Vector3( Math.floor(x + 0.5), 0.01, Math.floor(z + 0.5) );
+      else {
+        if(intersectedFace.z !== 0) {
+          this.cursorHighlightRotation = "0 0 0";
+          x = Math.floor(x + 0.5);
+          y = Math.floor(y) + 0.5;
+          z = z + 0.01 * intersectedFace.z;
 
+        }
+        else if(intersectedFace.x !== 0) {
+          this.cursorHighlightRotation = "0 90 0";
+          x = x + 0.01 * intersectedFace.x;
+          y = Math.floor(y) + 0.5;
+          z = Math.floor(z + 0.5);
+        }
+      }
+
+      v = new AFRAME.THREE.Vector3(x, y, z);
+    }
+    else {
+      this.cursorHighlightRotation = "-90 0 0";
+      this.cursorIntersectedFace = new AFRAME.THREE.Vector3(1, 1, 1);
+
+      v = new AFRAME.THREE.Vector3( Math.floor(x + 0.5), 0.01, Math.floor(z + 0.5) );
+    }
     this.cursorHighlightPosition = AFrameUtils.coordinates.stringify(v);
   }
 
