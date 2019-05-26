@@ -5,12 +5,15 @@
     ref="world"
     @child-attached="childAttached"
   >
+    <a-assets>
+      <a-mixin id="hover" material="transparent: true; opacity: 0.8"></a-mixin>
+    </a-assets>
     <a-plane
       id="cursor-highlight"
       rotation="-90 0 0"
       width="1"
       height="1"
-      color="tomato"
+      color="#23b3f4"
       material="transparent: true; opacity: 0.5"
       :position="cursorHighlightPosition"
     ></a-plane>
@@ -25,10 +28,12 @@
       shadow
       raycaster-listen
       @click="handleClick"
-      @raycaster-updated="updateCursorHighlight"
+      @raycaster-updated="handleRaycasterUpdate"
     ></a-plane>
 
     <a-box
+      raycaster-listen
+      shadow
       skeleton-helper
       class="collidable voxel"
       v-for="object in objects"
@@ -36,12 +41,15 @@
       :key="object._uuid"
       :id="object._uuid"
       :position="`${object.position.x} ${object.position.y} ${object.position.z}`"
-      @click="handleClick"
+      @mousedown="handleClick"
+      @mouseenter="handleHover"
+      @mouseleave="handleHover"
+      @raycaster-updated="handleRaycasterUpdate"
     ></a-box>
 
     <a-entity
       id="camera"
-      orbit-controls="enablePan: true; initialPosition: 10 10 10; keyPanSpeed: 100; maxDistance: 60; minDistance: 5; rotateSpeed: 0.25; zoomSpeed: 1.25"
+      orbit-controls="enablePan: true; initialPosition: 10 10 10; keyPanSpeed: 100; enableRotate: false; maxDistance: 60; minDistance: 5; rotateSpeed: 0.25; zoomSpeed: 1.25"
       camera="fov: 45"
       position="0 0 0"
       cursor="rayOrigin: mouse"
@@ -60,7 +68,7 @@ import "aframe-orbit-controls";
 import "../aframe-components/raycaster-listen";
 import "../aframe-components/skeleton-helper";
 
-import { AFrame, DetailEvent, EntityEventMap, utils as AFrameUtils } from "aframe";
+import { AFrame, DetailEvent, EntityEventMap, utils as AFrameUtils, Coordinate } from "aframe";
 
 @Component({
   computed: {
@@ -75,6 +83,7 @@ export default class World3d extends Vue {
   };
 
   private cursorHighlightPosition = "";
+  private isMouseDown: false | AFrame["AEntity"] = false;
   private objects!: any[];
   private selectedObjectId!: string;
   private selectedTool!: string;
@@ -82,6 +91,9 @@ export default class World3d extends Vue {
   mounted() {
     document.addEventListener("keydown", this.handleRotate);
     document.addEventListener("keyup", this.handleRotate);
+    document.addEventListener("mouseup", () => this.isMouseDown = false);
+
+    this.$store.commit("createWorld", this.$refs.world);
   }
 
   addObject(e: DetailEvent<"click">) {
@@ -98,7 +110,7 @@ export default class World3d extends Vue {
       color: "tomato",
       position: {
         x: cursorPosition.x,
-        y: 0.5,
+        y: cursorPosition.y + 0.49,
         z: cursorPosition.z
       }
     });
@@ -116,6 +128,23 @@ export default class World3d extends Vue {
       this.selectObject(e);
   }
 
+  handleHover(e: DetailEvent<"mouseenter">) {
+    if(this.selectedTool === "Select") {
+      if(e.type === "mouseenter")
+        e.target.setAttribute("mixin", "hover");
+      else if(e.type === "mouseleave")
+        e.target.setAttribute("mixin", "");
+    }
+  }
+  
+  handleRaycasterUpdate(e: DetailEvent<"raycaster-updated">) {
+    if(this.isMouseDown) {
+      this.updateObjectPosition(this.isMouseDown, e.detail.point);
+    } else {
+      this.updateCursorHighlight(e);
+    }
+  }
+
   handleRotate({ keyCode, type }: KeyboardEvent) {
     const camera: AFrame["AEntity"] | null = this.$el.querySelector("#camera");
     const orbitControls = camera.components["orbit-controls"];
@@ -124,10 +153,10 @@ export default class World3d extends Vue {
 
       if (keyCode === 81) { // Q
         orbitControls.controls.autoRotate = true;
-        orbitControls.controls.autoRotateSpeed = 2;
+        orbitControls.controls.autoRotateSpeed = 3;
       } else if (keyCode === 69) { // E
         orbitControls.controls.autoRotate = true;
-        orbitControls.controls.autoRotateSpeed = -2;
+        orbitControls.controls.autoRotateSpeed = -3;
       }
 
     } else if(type === "keyup") {
@@ -136,20 +165,36 @@ export default class World3d extends Vue {
   }
 
   selectObject(e: DetailEvent<"click">) {
-    const oldSelectedObject: AFrame["AEntity"] | null = (<AFrame["AScene"]>this.$refs.world)
-      .querySelector(`[id="${this.selectedObjectId}"]`);
-
-    if(oldSelectedObject)
-      oldSelectedObject.removeState("selected");
-
     e.target.addState("selected");
     this.$store.commit("selectObject", e.target.id);
+    this.isMouseDown = e.target;
   }
 
   updateCursorHighlight(e: DetailEvent<"raycaster-updated">) {
-    const { x, z } = e.detail.point;
+    let v: THREE.Vector3;
+    const { x, y, z } = e.detail.point;
+    
+    if( e.target.className.includes("voxel") ) {
+      const intersectedFace = e.detail.face.normal;
 
-    this.cursorHighlightPosition = `${Math.floor(x + 0.5)} 0.01 ${Math.floor(z + 0.5)}`;
+      v = new AFRAME.THREE.Vector3(x, y, z)
+        .round()
+        .add( new AFRAME.THREE.Vector3(0, 0.01, 0) );
+    }
+    else
+      v = new AFRAME.THREE.Vector3( Math.floor(x + 0.5), 0.01, Math.floor(z + 0.5) );
+
+    this.cursorHighlightPosition = AFrameUtils.coordinates.stringify(v);
+  }
+
+  // @question Duplicate code?
+  updateObjectPosition(object: AFrame["AEntity"], { x, y, z }: Coordinate) {
+
+    // @todo this should update state!
+    object.setAttribute(
+      "position",
+      `${Math.floor(x + 0.5)} 0.5 ${Math.floor(z + 0.5)}`
+    );
   }
 }
 </script>
