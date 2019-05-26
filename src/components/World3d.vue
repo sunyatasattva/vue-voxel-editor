@@ -2,6 +2,8 @@
   <a-scene
     stats
     :gridhelper="`divisions: ${this.WORLD_SIZE.x}; size: ${this.WORLD_SIZE.x}; colorGrid: #666; colorCenterLine: black`"
+    ref="world"
+    @child-attached="childAttached"
   >
     <a-plane
       id="cursor-highlight"
@@ -22,16 +24,19 @@
       color="#ccc"
       shadow
       raycaster-listen
-      @click="addObject"
+      @click="handleClick"
       @raycaster-updated="updateCursorHighlight"
     ></a-plane>
 
     <a-box
-      class="collidable"
+      skeleton-helper
+      class="collidable voxel"
       v-for="object in objects"
-      :key="object.id"
-      :color="object.color"
+      :color="`${object._uuid === selectedObjectId ? '#0055ff' : object.color}`"
+      :key="object._uuid"
+      :id="object._uuid"
       :position="`${object.position.x} ${object.position.y} ${object.position.z}`"
+      @click="handleClick"
     ></a-box>
 
     <a-entity
@@ -47,17 +52,21 @@
 
 <script lang="ts">
 import { Component, Prop, Vue } from "vue-property-decorator";
-import { mapState } from "vuex";
+import { mapState, mapGetters } from "vuex";
 import "aframe";
 import "aframe-event-set-component";
 import "aframe-gridhelper-component";
 import "aframe-orbit-controls";
 import "../aframe-components/raycaster-listen";
+import "../aframe-components/skeleton-helper";
 
-import { AFrame, DetailEvent, utils as AFrameUtils } from "aframe";
+import { AFrame, DetailEvent, EntityEventMap, utils as AFrameUtils } from "aframe";
 
 @Component({
-  computed: mapState(["objects"])
+  computed: {
+    ...mapGetters(["selectedObject"]),
+    ...mapState(["objects", "selectedObjectId", "selectedTool"])
+  }
 })
 export default class World3d extends Vue {
   private WORLD_SIZE = {
@@ -66,6 +75,9 @@ export default class World3d extends Vue {
   };
 
   private cursorHighlightPosition = "";
+  private objects!: any[];
+  private selectedObjectId!: string;
+  private selectedTool!: string;
 
   mounted() {
     document.addEventListener("keydown", this.handleRotate);
@@ -82,6 +94,7 @@ export default class World3d extends Vue {
     );
 
     this.$store.commit("addObject", {
+      _uuid: AFRAME.THREE.Math.generateUUID(),
       color: "tomato",
       position: {
         x: cursorPosition.x,
@@ -89,6 +102,18 @@ export default class World3d extends Vue {
         z: cursorPosition.z
       }
     });
+  }
+
+  childAttached(e: EntityEventMap["child-attached"]) {
+    if( e.detail.el.className.includes("voxel") )
+      console.log(e.detail.el);
+  }
+
+  handleClick(e: DetailEvent<"click">) {
+    if(this.selectedTool === "Create")
+      this.addObject(e);
+    else if(this.selectedTool === "Select")
+      this.selectObject(e);
   }
 
   handleRotate({ keyCode, type }: KeyboardEvent) {
@@ -108,6 +133,17 @@ export default class World3d extends Vue {
     } else if(type === "keyup") {
       orbitControls.controls.autoRotate = false;
     }
+  }
+
+  selectObject(e: DetailEvent<"click">) {
+    const oldSelectedObject: AFrame["AEntity"] | null = (<AFrame["AScene"]>this.$refs.world)
+      .querySelector(`[id="${this.selectedObjectId}"]`);
+
+    if(oldSelectedObject)
+      oldSelectedObject.removeState("selected");
+
+    e.target.addState("selected");
+    this.$store.commit("selectObject", e.target.id);
   }
 
   updateCursorHighlight(e: DetailEvent<"raycaster-updated">) {
