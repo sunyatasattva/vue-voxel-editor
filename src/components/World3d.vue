@@ -128,6 +128,15 @@ export default class World3d extends Vue {
       this.selectObject(e);
   }
 
+  handleKeypress(e: KeyboardEvent) {
+    const ROTATION_KEYCODES = [69, 81];
+
+    if( ROTATION_KEYCODES.includes(e.keyCode) )
+      this.handleRotate(e);
+    else if ( e.key === "Backspace" )
+      this.$store.commit("deleteObject", this.selectedObjectId);
+  }
+
   handleHover(e: DetailEvent<"mouseenter">) {
     if(this.selectedTool === "Select") {
       if(e.type === "mouseenter")

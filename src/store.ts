@@ -30,15 +30,20 @@ export default new Vuex.Store<RootState>({
     addObject(state, object) {
       state.objects = [...state.objects, object];
     },
-    createWorld(state, world) {
+    createWorld(state, world: AFrame["AScene"]) {
       state.world = world;
     },
-    selectObject(state, targetId) {
+    deleteObject(state, targetId: string) {
+      if(!targetId) return;
+
+      state.objects = state.objects.filter(obj => obj._uuid !== targetId);
+    },
+    selectObject(state, targetId: string) {
       deselectSelectedObject(state);
 
       state.selectedObjectId = targetId || null;
     },
-    selectTool(state, tool) {
+    selectTool(state, tool: string) {
       state.selectedTool = tool;
 
       deselectSelectedObject(state);
