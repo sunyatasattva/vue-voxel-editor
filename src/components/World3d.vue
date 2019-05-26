@@ -167,10 +167,10 @@ export default class World3d extends Vue {
 
       if (keyCode === 81) { // Q
         orbitControls.controls.autoRotate = true;
-        orbitControls.controls.autoRotateSpeed = 3;
+        orbitControls.controls.autoRotateSpeed = 4;
       } else if (keyCode === 69) { // E
         orbitControls.controls.autoRotate = true;
-        orbitControls.controls.autoRotateSpeed = -3;
+        orbitControls.controls.autoRotateSpeed = -4;
       }
 
     } else if(type === "keyup") {
