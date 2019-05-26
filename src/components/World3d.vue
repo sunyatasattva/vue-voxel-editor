@@ -10,12 +10,11 @@
     </a-assets>
     <a-plane
       id="cursor-highlight"
-      rotation="-90 0 0"
-      width="1"
       height="1"
       color="#23b3f4"
-      material="transparent: true; opacity: 0.5"
+      material="transparent: true; opacity: 0.5; side: double"
       :position="cursorHighlightPosition"
+      :rotation="cursorHighlightRotation"
     ></a-plane>
 
     <a-plane
@@ -83,6 +82,8 @@ export default class World3d extends Vue {
   };
 
   private cursorHighlightPosition = "";
+  private cursorHighlightRotation = "‭-90 0 0";
+  private cursorIntersectedFace!: THREE.Vector3;
   private isMouseDown: number | AFrame["AEntity"] = 0;
   private objects!: any[];
   private selectedObjectId!: string;
@@ -106,17 +107,21 @@ export default class World3d extends Vue {
 
     if (!raycasterEl) return;
 
-    const cursorPosition = AFrameUtils.coordinates.parse(
+    const { x: posX, y: posY, z: posZ } = AFrameUtils.coordinates.parse(
       this.cursorHighlightPosition
     );
+    const { x: rotX, y: rotY, z: rotZ } = AFrameUtils.coordinates.parse(
+      this.cursorHighlightRotation
+    );
+    const { x: faceX, y: faceY, z: faceZ } = this.cursorIntersectedFace || { x: 1, y: 1, z: 1 };
 
     this.$store.commit("addObject", {
       _uuid: AFRAME.THREE.Math.generateUUID(),
       color: "tomato",
       position: {
-        x: cursorPosition.x,
-        y: cursorPosition.y + 0.49,
-        z: cursorPosition.z
+        x: rotY ? posX + 0.49 * Math.sign(faceX) : posX,
+        y: rotX ? posY + 0.49 * Math.sign(faceY) : posY,
+        z: !rotX && !rotY ? posZ + 0.49 * Math.sign(faceZ) : posZ
       }
     });
   }
@@ -198,7 +203,7 @@ export default class World3d extends Vue {
         x = Math.floor(x + 0.5);
         y = y + 0.01 * intersectedFace.y;
         z = Math.floor(z + 0.5);
-    }
+      }
       else {
         if(intersectedFace.z !== 0) {
           this.cursorHighlightRotation = "0 0 0";
